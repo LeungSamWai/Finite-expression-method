@@ -42,4 +42,4 @@ If you find our code is helpful for your research, please kindly cite
 ```
 ## Acknowledgments
 
-We appreciate [bearpaw](https://github.com/bearpaw) for his simple and clean [framework](https://github.com/bearpaw/pytorch-classification) for deep learning and Taehoon Kim for his [RL fromework](https://github.com/carpedm20/ENAS-pytorch).
+We appreciate [bearpaw](https://github.com/bearpaw) for his [DL framework](https://github.com/bearpaw/pytorch-classification) and Taehoon Kim for his [RL fromework](https://github.com/carpedm20/ENAS-pytorch).
