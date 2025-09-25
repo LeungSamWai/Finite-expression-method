@@ -15,6 +15,14 @@ from torch.autograd import Variable
 # Torch
 ##########################
 
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+    device = torch.device('mps')
+else:
+    device = torch.device('cpu')
+
+
 def detach(h):
     if type(h) == Variable:
         return Variable(h.data)
@@ -25,7 +33,7 @@ def get_variable(inputs, cuda=False, **kwargs):
     if type(inputs) in [list, np.ndarray]:
         inputs = torch.Tensor(inputs)
     if cuda:
-        out = Variable(inputs.cuda(), **kwargs)
+        out = Variable(inputs.to(device), **kwargs)
     else:
         out = Variable(inputs, **kwargs)
     return out
@@ -40,7 +48,7 @@ def batchify(data, bsz, use_cuda):
     data = data.narrow(0, 0, nbatch * bsz)
     data = data.view(bsz, -1).t().contiguous()
     if use_cuda:
-        data = data.cuda()
+        data = data.to(device)
     return data
 
 

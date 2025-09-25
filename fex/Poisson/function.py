@@ -3,12 +3,21 @@ import torch
 from torch import sin, cos, exp
 import math
 
+
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+    device = torch.device('mps')
+else:
+    device = torch.device('cpu')
+
+
 def LHS_pde(u, x, dim_set):
 
-    v = torch.ones(u.shape).cuda()
+    v = torch.ones(u.shape).to(device)
     bs = x.size(0)
     ux = torch.autograd.grad(u, x, grad_outputs=v, create_graph=True)[0]
-    uxx = torch.zeros(bs, dim_set).cuda()
+    uxx = torch.zeros(bs, dim_set).to(device)
     for i in range(dim_set):
         ux_tem = ux[:, i:i+1]
         uxx_tem = torch.autograd.grad(ux_tem, x, grad_outputs=v, create_graph=True)[0]
@@ -19,7 +28,7 @@ def LHS_pde(u, x, dim_set):
 def RHS_pde(x):
     bs = x.size(0)
     dim = x.size(1)
-    return -dim*torch.ones(bs, 1).cuda()
+    return -dim*torch.ones(bs, 1).to(device)
 
 def true_solution(x):
     return 0.5*torch.sum(x**2, dim=1, keepdim=True)#1 / (2 * x[:, 0:1] + x[:, 1:2]-5)
@@ -78,7 +87,7 @@ if __name__ == '__main__':
     left = -1
     right = 1
     points = (torch.rand(batch_size, 1)) * (right - left) + left
-    x = torch.autograd.Variable(points.cuda(), requires_grad=True)
+    x = torch.autograd.Variable(points.to(device), requires_grad=True)
     function = true_solution
 
     '''
@@ -91,7 +100,7 @@ if __name__ == '__main__':
     '''
     boundary loss
     '''
-    bc_points = torch.FloatTensor([[left], [right]]).cuda()
+    bc_points = torch.FloatTensor([[left], [right]]).to(device)
     bc_value = true_solution(bc_points)
     bd_loss = torch.nn.functional.mse_loss(function(bc_points), bc_value)
 

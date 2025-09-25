@@ -13,6 +13,14 @@ import argparse
 import random
 import math
 
+
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+    device = torch.device('mps')
+else:
+    device = torch.device('cpu')
+
 parser = argparse.ArgumentParser(description='NAS')
 
 parser.add_argument('--left', default=-1, type=float)
@@ -32,8 +40,6 @@ parser.add_argument('--domainbs', default=1000, type=int)
 parser.add_argument('--bdbs', default=1000, type=int)
 args = parser.parse_args()
 
-os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
-
 unary = func.unary_functions
 binary = func.binary_functions
 unary_functions_str = func.unary_functions_str
@@ -46,7 +52,7 @@ dim = args.dim
 
 def get_boundary(num_pts, dim):
 
-    bd_pts = (torch.rand(num_pts, dim).cuda()) * (args.right - args.left) + args.left
+    bd_pts = (torch.rand(num_pts, dim).to(device)) * (args.right - args.left) + args.left
 
     num_half = num_pts//2
     xlst = torch.arange(0, num_half)
@@ -414,9 +420,9 @@ class unary_operation(nn.Module):
         super(unary_operation, self).__init__()
         self.unary = operator
         if not is_leave:
-            self.a = nn.Parameter(torch.Tensor(1).cuda())
+            self.a = nn.Parameter(torch.Tensor(1).to(device))
             self.a.data.fill_(1)
-            self.b = nn.Parameter(torch.Tensor(1).cuda())
+            self.b = nn.Parameter(torch.Tensor(1).to(device))
             self.b.data.fill_(0)
         self.is_leave = is_leave
 
@@ -461,7 +467,7 @@ class learnable_compuatation_tree(nn.Module):
                 self.learnable_operator_set[i].append(binary_operation(binary[j]))
         self.linear = []
         for num, i in enumerate(range(leaves)):
-            linear_module = torch.nn.Linear(dim, 1, bias=True).cuda() #set only one variable
+            linear_module = torch.nn.Linear(dim, 1, bias=True).to(device) #set only one variable
             linear_module.weight.data.normal_(0, 1/math.sqrt(dim))
             linear_module.bias.data.fill_(0)
             self.linear.append(linear_module)
@@ -510,7 +516,7 @@ class Controller(torch.nn.Module):
         """
 
         # [B, L, H]
-        inputs = torch.zeros(batch_size, self.input_size).cuda()
+        inputs = torch.zeros(batch_size, self.input_size).to(device)
         log_probs = []
         actions = []
         total_logits = self.forward(inputs)
@@ -525,9 +531,9 @@ class Controller(torch.nn.Module):
             if step>=args.random_step:
                 action = probs.multinomial(num_samples=1).data
             else:
-                action = torch.randint(0, structure_choice[idx], size=(batch_size, 1)).cuda()
+                action = torch.randint(0, structure_choice[idx], size=(batch_size, 1)).to(device)
             # print('old', action)
-            if args.greedy is not 0:
+            if args.greedy != 0:
                 for k in range(args.bs):
                     if np.random.rand(1)<args.greedy:
                         choice = random.choices(range(structure_choice[idx]), k=1)
@@ -550,7 +556,7 @@ class Controller(torch.nn.Module):
 
 def get_reward(bs, actions, learnable_tree, tree_params, tree_optim):
 
-    x = (torch.rand(args.domainbs, dim).cuda())*(args.right-args.left)+args.left
+    x = (torch.rand(args.domainbs, dim).to(device))*(args.right-args.left)+args.left
     x.requires_grad = True
 
     # print(x)
@@ -626,7 +632,7 @@ def true(x):
 
 def best_error(best_action, learnable_tree):
 
-    x = (torch.rand(args.domainbs, dim).cuda())*(args.right-args.left)+args.left
+    x = (torch.rand(args.domainbs, dim).to(device))*(args.right-args.left)+args.left
     x.requires_grad = True
 
     bs_action = best_action
@@ -675,7 +681,7 @@ def train_controller(Controller, Controller_optim, trainable_tree, tree_params, 
             binary_code = binary_code + str(action[0].item())
         # print(actions, '**********************************************')
         rewards, formulas = get_reward(bs, actions, trainable_tree, tree_params, tree_optim)
-        rewards = torch.cuda.FloatTensor(rewards).view(-1,1)
+        rewards = torch.tensor(rewards, dtype=torch.float32, device=device).view(-1,1)
         # discount
         if 1 > hyperparams['discount'] > 0:
             rewards = discount(rewards, hyperparams['discount'])
@@ -754,7 +760,7 @@ def train_controller(Controller, Controller_optim, trainable_tree, tree_params, 
     global count, leaves_cnt
     for candidate_ in candidates.candidates:
         trainable_tree = learnable_compuatation_tree()
-        trainable_tree = trainable_tree.cuda()
+        trainable_tree = trainable_tree.to(device)
 
         params = []
         for idx, v in enumerate(trainable_tree.learnable_operator_set):
@@ -793,7 +799,7 @@ def train_controller(Controller, Controller_optim, trainable_tree, tree_params, 
 
         for i in range(1000):
             print(i)
-            x = (torch.rand(100000, args.dim).cuda()) * (args.right - args.left) + args.left
+            x = (torch.rand(100000, args.dim).to(device)) * (args.right - args.left) + args.left
             sq_de = torch.mean((func.true_solution(x))**2)
             sq_nu = torch.mean((func.true_solution(x)-trainable_tree(x, candidate_.action)) ** 2)
             numerators.append(sq_nu.item())
@@ -810,7 +816,7 @@ def cosine_lr(opt, base_lr, e, epochs):
     return lr
 
 if __name__ == '__main__':
-    controller = Controller().cuda()
+    controller = Controller().to(device)
     hyperparams = {}
 
     hyperparams['controller_max_step'] = args.epoch
@@ -825,7 +831,7 @@ if __name__ == '__main__':
     controller_optim = torch.optim.Adam(controller.parameters(), lr= hyperparams['controller_lr'])
 
     trainable_tree = learnable_compuatation_tree()
-    trainable_tree = trainable_tree.cuda()
+    trainable_tree = trainable_tree.to(device)
 
     params = []
     for idx, v in enumerate(trainable_tree.learnable_operator_set):
