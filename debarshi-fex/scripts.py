@@ -11,8 +11,8 @@ def run_conservative():
     for i in range(5):
         for dim in [42, 48, 54]:
             idx += 1
-            session_name = f"train_dim{dim}_trial{i}"
-            log_file = f"logs/train_dim{dim}_trial{i}.log"
+            session_name = f"conservation_train_dim{dim}_trial{i}"
+            log_file = f"logs/conservation_train_dim{dim}_trial{i}.log"
             
             command = (
                 f'screen -dmS {session_name} bash -c '
