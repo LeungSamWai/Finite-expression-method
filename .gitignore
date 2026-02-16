@@ -1,1 +1,6 @@
 myenv
+debarshi-fex/__pycache__/
+__pycache__/
+*.pyc
+debarshi-fex/logs
+debarshi-fex/t_range_0_1_2ksearch_int20k_bd4kDim42
